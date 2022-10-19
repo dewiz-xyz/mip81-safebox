@@ -115,10 +115,7 @@ contract Safebox is WardsLike, CanLike, FileLike {
         (bool success, bytes memory result) = token.call(
             abi.encodeWithSelector(ERC20Like(address(0)).transferFrom.selector, from, to, amount)
         );
-        require(
-            success && (result.length == 0 || abi.decode(result, (bool))),
-            "Safebox/token-transfer-from-failed"
-        );
+        require(success && (result.length == 0 || abi.decode(result, (bool))), "Safebox/token-transfer-from-failed");
     }
 
     function _safeTransfer(
@@ -136,7 +133,11 @@ contract Safebox is WardsLike, CanLike, FileLike {
 interface ERC20Like {
     function transfer(address to, uint256 amt) external returns (bool);
 
-    function transferFrom(address from, address to, uint256 amt) external returns (bool);
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amt
+    ) external returns (bool);
 
     function balanceOf(address usr) external view returns (uint256);
 }
