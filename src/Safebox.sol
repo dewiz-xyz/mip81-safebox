@@ -99,7 +99,7 @@ contract Safebox is WardsLike, CanLike, FileLike {
     }
 
     function deposit(address token, uint256 amount) external auth {
-        _safeTransferFrom(token, msg.sender, recipient, amount);
+        _safeTransferFrom(token, msg.sender, address(this), amount);
     }
 
     function withdraw(address token, uint256 amount) external auth {
