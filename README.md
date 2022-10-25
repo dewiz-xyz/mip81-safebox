@@ -2,6 +2,12 @@
 
 A safebox for digital assets.
 
+- [Usage](#usage)
+  - [Set up](#set-up)
+  - [Deposit assets](#deposit-assets)
+  - [Withdraw assets](#withdraw-assets)
+  - [Change the `recipient` address](#change-the-recipient-address)
+
 ## Usage
 
 There are 3 "roles" in this contract:
@@ -12,11 +18,53 @@ There are 3 "roles" in this contract:
 
 Role management and admin function are implemented using common MCD patterns.
 
-## Note on Security
+### Set up
 
-The change of the `recipient` address is a 2-step process and can be though of as a custom `2-out-of-N` multisig implementation, where both an `owner` and a `custodian` must collaborate.
+To create a `Safebox`, the deployer needs to provide the addresses of one `owner`, one `custodian` and the `recipient`. Other `owner`s and `custodians`s can be added/removed later by an `owner` through `rely`/`deny` and `hope`/`nope` respectively.
 
-However, a naive implementation could create room for a potential front-running attack:
+### Deposit assets
+
+There are 2 possible ways of making a deposit into the `Safebox`:
+
+1. Use the `Safebox` address as the `to` address of a ERC-20 compatible `transfer` transaction.
+2. Call the `deposit`<sup>[1]</sup> method from the `Safebox` contract:
+   ```solidity
+   safebox.deposit(<TOKEN_ADDRESS>, <TOKEN_AMOUNT>)
+   ```
+
+---
+
+<sup>[1]</sup> Notice that this method requires an ERC-20 compatible `transferFrom` implementation with the right `allowance` given to the `Safebox` contract.
+
+### Withdraw assets
+
+An `owner` can withdraw assets to the `recipient` address at any time:
+
+```solidity
+safebox.withdraw(<TOKEN_ADDRESS>, <TOKEN_AMOUNT>)
+```
+
+### Change the `recipient` address
+
+The change of the `recipient` address is a 2-step process and can be thought of as a custom `2-out-of-N` multisig implementation, where both an `owner` and a `custodian` must collaborate.
+
+The `owner` starts the flow by calling:
+
+```solidity
+safebox.file("recipient", <NEW_RECIPIENT>)
+```
+
+The `custodian` confirms the change by calling:
+
+```solidity
+safebox.approveRecipientChange(<NEW_RECIPIENT>)
+```
+
+Notice that `<NEW_RECIPIENT>` must be the same, otherwise the transaction will revert<sup>[2]</sup>.
+
+---
+
+<sup>[2]</sup> A naive implementation of the change `recipient` flow could create room for a potential front-running attack:
 
 1. The `owner` initiates the process to change the `recipient` and let the `custodian` know.
 2. The `custodian` checks the pending address and creates a transaction to approve it.
