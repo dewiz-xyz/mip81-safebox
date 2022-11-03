@@ -37,56 +37,10 @@ contract SafeboxTest is Test {
     }
 
     function testGiveRightPermissionsUponCreation() public {
-        vm.expectEmit(true, false, false, false);
-        emit Rely(owner);
-
-        vm.expectEmit(true, false, false, false);
-        emit Hope(custodian);
-
         safebox = new Safebox(owner, custodian, recipient);
 
-        assertEq(safebox.wards(owner), 1, "Owner was not relied");
-        assertEq(safebox.can(custodian), 1, "Custodian was not hoped");
-    }
-
-    function testRelyDeny() public {
-        assertEq(safebox.wards(address(0)), 0, "Pre-condition failed: ward already set");
-
-        // --------------------
-        vm.expectEmit(true, false, false, false);
-        emit Rely(address(0));
-
-        safebox.rely(address(0));
-
-        assertEq(safebox.wards(address(0)), 1, "Post-condition failed: ward not set");
-
-        // --------------------
-        vm.expectEmit(true, false, false, false);
-        emit Deny(address(0));
-
-        safebox.deny(address(0));
-
-        assertEq(safebox.wards(address(0)), 0, "Pre-condition failed: ward not removed");
-    }
-
-    function testHopeNope() public {
-        assertEq(safebox.can(address(0)), 0, "Pre-condition failed: address already hoped");
-
-        // --------------------
-        vm.expectEmit(true, false, false, false);
-        emit Hope(address(0));
-
-        safebox.hope(address(0));
-
-        assertEq(safebox.can(address(0)), 1, "Post-condition failed: address not hoped");
-
-        // --------------------
-        vm.expectEmit(true, false, false, false);
-        emit Nope(address(0));
-
-        safebox.nope(address(0));
-
-        assertEq(safebox.can(address(0)), 0, "Post-condition failed: address not noped");
+        assertEq(safebox.owner(), owner, "Owner was not relied");
+        assertEq(safebox.custodian(), custodian, "Custodian was not hoped");
     }
 
     function testFuzzAnyoneCanDeposit(address sender) public {
@@ -129,7 +83,7 @@ contract SafeboxTest is Test {
         usdx.mint(address(safebox), amount);
         assertEq(usdx.balanceOf(address(safebox)), amount);
 
-        vm.expectRevert("Safebox/not-authorized");
+        vm.expectRevert("Safebox/not-owner");
 
         vm.startPrank(address(sender));
         safebox.withdraw(address(usdx), amount);
@@ -164,7 +118,7 @@ contract SafeboxTest is Test {
 
         assertEq(safebox.pendingRecipient(), newRecipient, "Post-condition: failed to set pending recipient");
 
-        vm.expectRevert("Safebox/not-allowed");
+        vm.expectRevert("Safebox/not-custodian");
 
         vm.prank(address(0xd34d));
         safebox.approveChangeRecipient(newRecipient);
@@ -182,10 +136,6 @@ contract SafeboxTest is Test {
         safebox.approveChangeRecipient(address(0x1234));
     }
 
-    event Rely(address indexed usr);
-    event Deny(address indexed usr);
-    event Hope(address indexed usr);
-    event Nope(address indexed usr);
     event File(bytes32 indexed what, address data);
     event RecipientChange(address indexed recipient);
     event Deposit(address indexed token, uint256 amount);
@@ -193,11 +143,7 @@ contract SafeboxTest is Test {
 }
 
 contract ERC20 is ERC20Abstract {
-    constructor(
-        string memory name,
-        string memory symbol,
-        uint8 decimals
-    ) ERC20Abstract(name, symbol, decimals) {}
+    constructor(string memory name, string memory symbol, uint8 decimals) ERC20Abstract(name, symbol, decimals) {}
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);

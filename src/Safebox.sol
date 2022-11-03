@@ -22,10 +22,11 @@ pragma solidity ^0.8.16;
  * The `custodian` cooperation is required whenever the `owner` wants to update the `recipient`.
  */
 contract Safebox {
-    /// @notice Addresses with owner access on this contract. `wards[usr]`
-    mapping(address => uint256) public wards;
-    /// @notice Addresses with custodian access on this contract. `can[usr]`
-    mapping(address => uint256) public can;
+    /// @notice The contract owner.
+    address public immutable owner;
+
+    /// @notice The contract custodian.
+    address public immutable custodian;
 
     /// @notice The recipient for the assets held in this contract.
     address public recipient;
@@ -33,26 +34,6 @@ contract Safebox {
     /// @notice Reference to the new recipient when the it is to be changed.
     address public pendingRecipient;
 
-    /**
-     * @notice `usr` was granted owner access.
-     * @param usr The user address.
-     */
-    event Rely(address indexed usr);
-    /**
-     * @notice `usr` owner access was revoked.
-     * @param usr The user address.
-     */
-    event Deny(address indexed usr);
-    /**
-     * @notice `usr` was granted custodian access.
-     * @param usr The user address.
-     */
-    event Hope(address indexed usr);
-    /**
-     * @notice `usr` custodian address was revoked.
-     * @param usr The user address.
-     */
-    event Nope(address indexed usr);
     /**
      * @notice A contract parameter was updated.
      * @param what The changed parameter name. Currently the supported values are: "outputConduit" and "jug".
@@ -70,7 +51,6 @@ contract Safebox {
      * @param amount The amount deposited.
      */
     event Deposit(address indexed token, uint256 amount);
-
     /**
      * @notice A withdrawal was made by the owner.
      * @param token The token deposited.
@@ -78,71 +58,17 @@ contract Safebox {
      */
     event Withdraw(address indexed token, uint256 amount);
 
-    modifier auth() {
-        require(wards[msg.sender] == 1, "Safebox/not-authorized");
-        _;
-    }
-
     /**
      * @param _owner The safebox owner.
      * @param _custodian The safebox custodian.
      * @param _recipient The recipient for assets in the safebox.
      */
-    constructor(
-        address _owner,
-        address _custodian,
-        address _recipient
-    ) {
+    constructor(address _owner, address _custodian, address _recipient) {
         require(_recipient != address(0), "Safebox/invalid-recipient");
 
-        wards[_owner] = 1;
-        emit Rely(_owner);
-
-        can[_custodian] = 1;
-        emit Hope(_custodian);
-
+        owner = _owner;
+        custodian = _custodian;
         recipient = _recipient;
-        emit RecipientChange(_recipient);
-    }
-
-    /*//////////////////////////////////
-               Authorization
-    //////////////////////////////////*/
-
-    /**
-     * @notice Grants `usr` owner access to this contract.
-     * @param usr The user address.
-     */
-    function rely(address usr) external auth {
-        wards[usr] = 1;
-        emit Rely(usr);
-    }
-
-    /**
-     * @notice Revokes `usr` owner access from this contract.
-     * @param usr The user address.
-     */
-    function deny(address usr) external auth {
-        wards[usr] = 0;
-        emit Deny(usr);
-    }
-
-    /**
-     * @notice Grants `usr` custodian access to this contract.
-     * @param usr The user address.
-     */
-    function hope(address usr) external auth {
-        can[usr] = 1;
-        emit Hope(usr);
-    }
-
-    /**
-     * @notice Revokes `usr` custodian access from this contract.
-     * @param usr The user address.
-     */
-    function nope(address usr) external auth {
-        can[usr] = 0;
-        emit Nope(usr);
     }
 
     /*//////////////////////////////////
@@ -154,7 +80,9 @@ contract Safebox {
      * @param what The changed parameter name. `"recipient"`
      * @param data The new value of the parameter.
      */
-    function file(bytes32 what, address data) external auth {
+    function file(bytes32 what, address data) external {
+        require(owner == msg.sender, "Safebox/not-owner");
+
         if (what == "recipient") {
             require(data != address(0), "Safebox/invalid-recipient");
             pendingRecipient = data;
@@ -170,7 +98,7 @@ contract Safebox {
      * @param _recipient The new recipient being approved.
      */
     function approveChangeRecipient(address _recipient) external {
-        require(can[msg.sender] == 1, "Safebox/not-allowed");
+        require(msg.sender == custodian, "Safebox/not-custodian");
         require(pendingRecipient != address(0) && pendingRecipient == _recipient, "Safebox/recipient-mismatch");
 
         recipient = _recipient;
@@ -194,7 +122,9 @@ contract Safebox {
      * @param token The token to be withdrawn.
      * @param amount The amount of tokens.
      */
-    function withdraw(address token, uint256 amount) external auth {
+    function withdraw(address token, uint256 amount) external {
+        require(owner == msg.sender, "Safebox/not-owner");
+
         _safeTransfer(token, recipient, amount);
         emit Withdraw(token, amount);
     }
@@ -206,12 +136,7 @@ contract Safebox {
      * @param to The destination address.
      * @param amount The amount to be transfered.
      */
-    function _safeTransferFrom(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    ) internal {
+    function _safeTransferFrom(address token, address from, address to, uint256 amount) internal {
         (bool success, bytes memory result) = token.call(
             abi.encodeWithSelector(ERC20Like(address(0)).transferFrom.selector, from, to, amount)
         );
@@ -224,11 +149,7 @@ contract Safebox {
      * @param to The destination address.
      * @param amount The amount to be transfered.
      */
-    function _safeTransfer(
-        address token,
-        address to,
-        uint256 amount
-    ) internal {
+    function _safeTransfer(address token, address to, uint256 amount) internal {
         (bool success, bytes memory result) = token.call(
             abi.encodeWithSelector(ERC20Like(address(0)).transfer.selector, to, amount)
         );
@@ -239,11 +160,7 @@ contract Safebox {
 interface ERC20Like {
     function transfer(address to, uint256 amt) external returns (bool);
 
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amt
-    ) external returns (bool);
+    function transferFrom(address from, address to, uint256 amt) external returns (bool);
 
     function balanceOf(address usr) external view returns (uint256);
 }
