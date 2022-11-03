@@ -16,11 +16,11 @@ There are 3 "roles" in this contract:
 2. `custodian`: cooperates whenever the `owner` wants to update the `recipient`.
 3. `recipient`: receives assets from the safebox.
 
-Role management and admin function are implemented using common MCD patterns.
+`owner` and `custodian` are immutable. If they need to be replaced, a new contract needs to be deployed with the updated addresses.
 
 ### Set up
 
-To create a `Safebox`, the deployer needs to provide the addresses of one `owner`, one `custodian` and the `recipient`. Other `owner`s and `custodians`s can be added/removed later by an `owner` through `rely`/`deny` and `hope`/`nope` respectively.
+To create a `Safebox`, the deployer needs to provide the addresses of one `owner`, one `custodian` and the `recipient`.
 
 ### Deposit assets
 
