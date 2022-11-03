@@ -2,13 +2,14 @@
 
 A safebox for digital assets.
 
+- [Overview](#overview)
+- [Deployment](#deployment)
 - [Usage](#usage)
-  - [Set up](#set-up)
   - [Deposit assets](#deposit-assets)
   - [Withdraw assets](#withdraw-assets)
   - [Change the `recipient` address](#change-the-recipient-address)
 
-## Usage
+## Overview
 
 There are 3 "roles" in this contract:
 
@@ -18,15 +19,22 @@ There are 3 "roles" in this contract:
 
 `owner` and `custodian` are immutable. If they need to be replaced, a new contract needs to be deployed with the updated addresses.
 
-### Set up
+## Deployment
 
 To create a `Safebox`, the deployer needs to provide the addresses of one `owner`, one `custodian` and the `recipient`.
+
+Deployed addresses:
+
+- Mainnet: `TBD`
+- Goerli: `TBD`
+
+## Usage
 
 ### Deposit assets
 
 There are 2 possible ways of making a deposit into the `Safebox`:
 
-1. Use the `Safebox` address as the `to` address of a ERC-20 compatible `transfer` transaction.
+1. Use the `Safebox` address as the `to` address of an ERC-20 compatible `transfer` transaction.
 2. Call the `deposit`<sup>[1]</sup> method from the `Safebox` contract:
    ```solidity
    safebox.deposit(<TOKEN_ADDRESS>, <TOKEN_AMOUNT>)
@@ -38,7 +46,7 @@ There are 2 possible ways of making a deposit into the `Safebox`:
 
 ### Withdraw assets
 
-An `owner` can withdraw assets to the `recipient` address at any time:
+The `owner` can withdraw assets to the `recipient` address at any time:
 
 ```solidity
 safebox.withdraw(<TOKEN_ADDRESS>, <TOKEN_AMOUNT>)
@@ -46,7 +54,7 @@ safebox.withdraw(<TOKEN_ADDRESS>, <TOKEN_AMOUNT>)
 
 ### Change the `recipient` address
 
-The change of the `recipient` address is a 2-step process and can be thought of as a custom `2-out-of-N` multisig implementation, where both an `owner` and a `custodian` must collaborate.
+The change of the `recipient` address is a 2-step process and can be thought of as a custom `2-out-of-N` multisig implementation, where both the `owner` and the `custodian` must collaborate.
 
 The `owner` starts the flow by calling:
 
