@@ -54,7 +54,7 @@ safebox.withdraw(<TOKEN_ADDRESS>, <TOKEN_AMOUNT>)
 
 ### Change the `recipient` address
 
-The change of the `recipient` address is a 2-step process and can be thought of as a custom `2-out-of-N` multisig implementation, where both the `owner` and the `custodian` must collaborate.
+The change of the `recipient` address is a 2-step process and can be thought of as a custom `2-out-of-2` multisig implementation, where both the `owner` and the `custodian` must collaborate.
 
 The `owner` starts the flow by calling:
 
