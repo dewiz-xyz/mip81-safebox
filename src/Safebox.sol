@@ -31,12 +31,12 @@ contract Safebox {
     /// @notice The recipient for the assets held in this contract.
     address public recipient;
 
-    /// @notice Reference to the new recipient when the it is to be changed.
+    /// @notice Reference to the new recipient when it is to be changed.
     address public pendingRecipient;
 
     /**
      * @notice A contract parameter was updated.
-     * @param what The changed parameter name. Currently the supported values are: "outputConduit" and "jug".
+     * @param what The changed parameter name. The supported values are: "recipient".
      * @param data The new value of the parameter.
      */
     event File(bytes32 indexed what, address data);
@@ -53,8 +53,8 @@ contract Safebox {
     event Deposit(address indexed token, uint256 amount);
     /**
      * @notice A withdrawal was made by the owner.
-     * @param token The token deposited.
-     * @param amount The amount deposited.
+     * @param token The token withdrawn.
+     * @param amount The amount withdrawn.
      */
     event Withdraw(address indexed token, uint256 amount);
 
