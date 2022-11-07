@@ -14,7 +14,7 @@ A safebox for digital assets.
 There are 3 "roles" in this contract:
 
 1. `owner`: has full control of how much and when it can send assets to `recipient`.
-2. `custodian`: cooperates whenever the `owner` wants to update the `recipient`.
+2. `custodian`: approves changes in the `recipient` address made by the `owner`.
 3. `recipient`: receives assets from the safebox.
 
 `owner` and `custodian` are immutable. If they need to be replaced, a new contract needs to be deployed with the updated addresses.
