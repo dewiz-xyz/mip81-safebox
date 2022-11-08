@@ -23,24 +23,49 @@ contract SafeboxTest is Test {
     Safebox internal safebox;
     ERC20 internal usdx = new ERC20("USDX", "USDX", 18);
 
+    FakeVatLiveness internal vat = new FakeVatLiveness();
     address internal owner = address(this);
     address internal custodian = address(0x1337);
     address internal recipient = address(0x2448);
 
     function setUp() public {
-        safebox = new Safebox(owner, custodian, recipient);
+        safebox = new Safebox(address(vat), owner, custodian, recipient);
     }
 
     function testConstructorRevertWhenRecipientIsInvalid() public {
         vm.expectRevert("Safebox/invalid-recipient");
-        new Safebox(owner, custodian, address(0));
+        new Safebox(address(vat), owner, custodian, address(0));
     }
 
     function testGiveRightPermissionsUponCreation() public {
-        safebox = new Safebox(owner, custodian, recipient);
+        vm.expectEmit(true, false, false, false);
+        emit Rely(owner);
+        vm.expectEmit(true, false, false, false);
+        emit Hope(custodian);
+        safebox = new Safebox(address(vat), owner, custodian, recipient);
 
-        assertEq(safebox.owner(), owner, "Owner was not relied");
-        assertEq(safebox.custodian(), custodian, "Custodian was not hoped");
+        assertEq(safebox.wards(owner), 1, "Owner was not relied");
+        assertEq(safebox.can(custodian), 1, "Custodian was not hoped");
+    }
+
+    function testRelyDeny() public {
+        assertEq(safebox.wards(address(0)), 0, "Pre-condition failed: ward already set");
+
+        // --------------------
+        vm.expectEmit(true, false, false, false);
+        emit Rely(address(0));
+
+        safebox.rely(address(0));
+
+        assertEq(safebox.wards(address(0)), 1, "Post-condition failed: ward not set");
+
+        // --------------------
+        vm.expectEmit(true, false, false, false);
+        emit Deny(address(0));
+
+        safebox.deny(address(0));
+
+        assertEq(safebox.wards(address(0)), 0, "Pre-condition failed: ward not removed");
     }
 
     function testFuzzAnyoneCanDeposit(address sender) public {
@@ -87,6 +112,27 @@ contract SafeboxTest is Test {
 
         vm.startPrank(address(sender));
         safebox.withdraw(address(usdx), amount);
+    }
+
+    function testFuzzAnyoneCanWithdrawWhenVatIsNotLive(address sender) public {
+        vm.assume(sender != owner);
+
+        uint256 amount = 123;
+        usdx.mint(address(safebox), amount);
+        assertEq(usdx.balanceOf(address(safebox)), amount);
+
+        vm.expectEmit(true, false, false, true);
+        emit Withdraw(address(usdx), amount);
+
+        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
+
+        vat.cage();
+
+        vm.startPrank(address(sender));
+        safebox.withdraw(address(usdx), amount);
+
+        assertEq(usdx.balanceOf(address(safebox)), 0, "Post-condition failed: invalid safebox balance");
+        assertEq(usdx.balanceOf(recipient), amount, "Post-condition failed: invalid recipient balance");
     }
 
     function testChangeRecipient() public {
@@ -136,6 +182,9 @@ contract SafeboxTest is Test {
         safebox.approveChangeRecipient(address(0x1234));
     }
 
+    event Rely(address indexed usr);
+    event Deny(address indexed usr);
+    event Hope(address indexed usr);
     event File(bytes32 indexed what, address data);
     event RecipientChange(address indexed recipient);
     event Deposit(address indexed token, uint256 amount);
@@ -151,5 +200,13 @@ contract ERC20 is ERC20Abstract {
 
     function burn(address from, uint256 amount) external {
         _burn(from, amount);
+    }
+}
+
+contract FakeVatLiveness {
+    uint256 public live = 1;
+
+    function cage() external {
+        live = 0;
     }
 }
