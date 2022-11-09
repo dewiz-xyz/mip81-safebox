@@ -17,7 +17,7 @@ pragma solidity ^0.8.16;
 
 /**
  * @author amusingaxl
- * @title A safebox for ERC20 tokens.
+ * @title A safebox for ERC-20 tokens.
  * @notice
  * - The `owner`(MakerDAO Governance) is in full control of how much and when it can send tokens to `recipient`.
  *     - MakerDAO Governance could add other owners if required in the future (i.e.: automation of the Safebox balance).
@@ -28,7 +28,7 @@ pragma solidity ^0.8.16;
 contract Safebox {
     /// @notice MCD Vat module.
     VatLike public immutable vat;
-    /// @notice The ERC20 token to be held in this contract.
+    /// @notice The ERC-20 token to be held in this contract.
     ERC20Like public immutable token;
 
     /// @notice Addresses with owner access on this contract. `wards[usr]`
@@ -97,7 +97,7 @@ contract Safebox {
 
     /**
      * @param _vat The MCD vat module.
-     * @param _token The ERC20 token to be held in this contract.
+     * @param _token The ERC-20 token to be held in this contract.
      * @param _owner The safebox owner.
      * @param _custodian The safebox custodian.
      * @param _recipient The recipient for tokens in the safebox.
@@ -121,7 +121,7 @@ contract Safebox {
     //////////////////////////////////*/
 
     /**
-     * @notice Withdraws ERC20-like tokens from this contract.
+     * @notice Withdraws tokens from this contract.
      * @dev Anyone can call this function after MakerDAO governance executes an Emergency Shutdown.
      * @param amount The amount of tokens.
      */
@@ -133,7 +133,7 @@ contract Safebox {
     }
 
     /**
-     * @notice Deposits ERC20-like tokens into this contract.
+     * @notice Deposits tokens into this contract.
      * @param amount The amount of tokens.
      */
     function deposit(uint256 amount) external {
