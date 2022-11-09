@@ -15,6 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity ^0.8.16;
 
+import {VatAbstract} from "dss-interfaces/dss/VatAbstract.sol";
+import {GemAbstract} from "dss-interfaces/ERC/GemAbstract.sol";
+
 /**
  * @author amusingaxl
  * @title A safebox for ERC-20 tokens.
@@ -27,9 +30,9 @@ pragma solidity ^0.8.16;
  */
 contract Safebox {
     /// @notice MCD Vat module.
-    VatLike public immutable vat;
+    VatAbstract public immutable vat;
     /// @notice The ERC-20 token to be held in this contract.
-    ERC20Like public immutable token;
+    GemAbstract public immutable token;
 
     /// @notice Addresses with owner access on this contract. `wards[usr]`
     mapping(address => uint256) public wards;
@@ -111,8 +114,8 @@ contract Safebox {
         custodians[_custodian] = 1;
         emit AddCustodian(_custodian);
 
-        vat = VatLike(_vat);
-        token = ERC20Like(_token);
+        vat = VatAbstract(_vat);
+        token = GemAbstract(_token);
         recipient = _recipient;
     }
 
@@ -234,16 +237,4 @@ contract Safebox {
 
         emit RecipientChange(_recipient);
     }
-}
-
-interface VatLike {
-    function live() external view returns (uint256);
-}
-
-interface ERC20Like {
-    function transfer(address to, uint256 amt) external returns (bool);
-
-    function transferFrom(address from, address to, uint256 amt) external returns (bool);
-
-    function balanceOf(address usr) external view returns (uint256);
 }
