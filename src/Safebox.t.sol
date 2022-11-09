@@ -91,6 +91,8 @@ contract SafeboxTest is Test {
     }
 
     function testFuzzAnyoneCanDeposit(address sender) public {
+        vm.assume(sender != address(safebox));
+
         uint256 amount = 20;
         usdx.mint(sender, amount);
 
@@ -137,7 +139,7 @@ contract SafeboxTest is Test {
     }
 
     function testFuzzAnyoneCanWithdrawWhenVatIsNotLive(address sender) public {
-        vm.assume(sender != owner);
+        vm.assume(sender != owner && sender != address(safebox));
         vat.cage();
 
         uint256 amount = 123;
