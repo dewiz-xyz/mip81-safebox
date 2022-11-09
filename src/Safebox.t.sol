@@ -29,12 +29,12 @@ contract SafeboxTest is Test {
     address internal recipient = address(0x2448);
 
     function setUp() public {
-        safebox = new Safebox(address(vat), owner, custodian, recipient);
+        safebox = new Safebox(address(vat), address(usdx), owner, custodian, recipient);
     }
 
     function testConstructorRevertWhenRecipientIsInvalid() public {
         vm.expectRevert("Safebox/invalid-recipient");
-        new Safebox(address(vat), owner, custodian, address(0));
+        new Safebox(address(vat), address(usdx), owner, custodian, address(0));
     }
 
     function testGiveRightPermissionsUponCreation() public {
@@ -42,7 +42,7 @@ contract SafeboxTest is Test {
         emit Rely(owner);
         vm.expectEmit(true, false, false, false);
         emit AddCustodian(custodian);
-        safebox = new Safebox(address(vat), owner, custodian, recipient);
+        safebox = new Safebox(address(vat), address(usdx), owner, custodian, recipient);
 
         assertEq(safebox.wards(owner), 1, "Owner was not relied");
         assertEq(safebox.custodians(custodian), 1, "Custodian was not hoped");
@@ -102,9 +102,9 @@ contract SafeboxTest is Test {
         assertEq(usdx.balanceOf(address(safebox)), 0, "Pre-condition failed: safebox balance not zero");
 
         vm.expectEmit(true, true, false, true);
-        emit Deposit(sender, address(usdx), amount);
+        emit Deposit(sender, amount);
 
-        safebox.deposit(address(usdx), amount);
+        safebox.deposit(amount);
 
         assertEq(usdx.balanceOf(address(safebox)), amount, "Post-condition failed: invalid safebox balance");
     }
@@ -117,9 +117,9 @@ contract SafeboxTest is Test {
         assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
 
         vm.expectEmit(true, true, false, true);
-        emit Withdraw(recipient, address(usdx), amount);
+        emit Withdraw(recipient, amount);
 
-        safebox.withdraw(address(usdx), amount);
+        safebox.withdraw(amount);
 
         assertEq(usdx.balanceOf(address(safebox)), 0, "Post-condition failed: invalid safebox balance");
         assertEq(usdx.balanceOf(recipient), amount, "Post-condition failed: invalid recipient balance");
@@ -135,7 +135,7 @@ contract SafeboxTest is Test {
         vm.expectRevert("Safebox/not-ward");
 
         vm.startPrank(address(sender));
-        safebox.withdraw(address(usdx), amount);
+        safebox.withdraw(amount);
     }
 
     function testFuzzAnyoneCanWithdrawWhenVatIsNotLive(address sender) public {
@@ -149,10 +149,10 @@ contract SafeboxTest is Test {
         assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
 
         vm.expectEmit(true, true, false, true);
-        emit Withdraw(recipient, address(usdx), amount);
+        emit Withdraw(recipient, amount);
 
         vm.startPrank(address(sender));
-        safebox.withdraw(address(usdx), amount);
+        safebox.withdraw(amount);
 
         assertEq(usdx.balanceOf(address(safebox)), 0, "Post-condition failed: invalid safebox balance");
         assertEq(usdx.balanceOf(recipient), amount, "Post-condition failed: invalid recipient balance");
@@ -211,8 +211,8 @@ contract SafeboxTest is Test {
     event RemoveCustodian(address indexed usr);
     event File(bytes32 indexed what, address data);
     event RecipientChange(address indexed recipient);
-    event Deposit(address indexed sender, address indexed token, uint256 amount);
-    event Withdraw(address indexed recipient, address indexed token, uint256 amount);
+    event Deposit(address indexed sender, uint256 amount);
+    event Withdraw(address indexed recipient, uint256 amount);
 }
 
 contract ERC20 is ERC20Abstract {
