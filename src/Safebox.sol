@@ -28,7 +28,7 @@ pragma solidity ^0.8.16;
 contract Safebox {
     /// @notice MCD Vat module.
     VatLike public immutable vat;
-    /// @notice The ERC20 token to be hold in this contract.
+    /// @notice The ERC20 token to be held in this contract.
     ERC20Like public immutable token;
 
     /// @notice Addresses with owner access on this contract. `wards[usr]`
@@ -97,7 +97,7 @@ contract Safebox {
 
     /**
      * @param _vat The MCD vat module.
-     * @param _token The ERC20 token to be hold in this contract.
+     * @param _token The ERC20 token to be held in this contract.
      * @param _owner The safebox owner.
      * @param _custodian The safebox custodian.
      * @param _recipient The recipient for tokens in the safebox.
