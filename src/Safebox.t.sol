@@ -41,31 +41,53 @@ contract SafeboxTest is Test {
         vm.expectEmit(true, false, false, false);
         emit Rely(owner);
         vm.expectEmit(true, false, false, false);
-        emit Hope(custodian);
+        emit AddCustodian(custodian);
         safebox = new Safebox(address(vat), owner, custodian, recipient);
 
         assertEq(safebox.wards(owner), 1, "Owner was not relied");
-        assertEq(safebox.can(custodian), 1, "Custodian was not hoped");
+        assertEq(safebox.custodians(custodian), 1, "Custodian was not hoped");
     }
 
     function testRelyDeny() public {
-        assertEq(safebox.wards(address(0)), 0, "Pre-condition failed: ward already set");
+        assertEq(safebox.wards(address(1)), 0, "Pre-condition failed: ward already set");
 
         // --------------------
         vm.expectEmit(true, false, false, false);
-        emit Rely(address(0));
+        emit Rely(address(1));
 
-        safebox.rely(address(0));
+        safebox.rely(address(1));
 
-        assertEq(safebox.wards(address(0)), 1, "Post-condition failed: ward not set");
+        assertEq(safebox.wards(address(1)), 1, "Post-condition failed: ward not set");
 
         // --------------------
         vm.expectEmit(true, false, false, false);
-        emit Deny(address(0));
+        emit Deny(address(1));
 
-        safebox.deny(address(0));
+        safebox.deny(address(1));
 
-        assertEq(safebox.wards(address(0)), 0, "Pre-condition failed: ward not removed");
+        assertEq(safebox.wards(address(1)), 0, "Pre-condition failed: ward not removed");
+    }
+
+    function testAddRemoveCustodian() public {
+        vm.startPrank(custodian);
+
+        assertEq(safebox.custodians(address(1)), 0, "Pre-condition failed: ward already set");
+
+        // --------------------
+        vm.expectEmit(true, false, false, false);
+        emit AddCustodian(address(1));
+
+        safebox.addCustodian(address(1));
+
+        assertEq(safebox.custodians(address(1)), 1, "Post-condition failed: ward not set");
+
+        // --------------------
+        vm.expectEmit(true, false, false, false);
+        emit RemoveCustodian(address(1));
+
+        safebox.removeCustodian(address(1));
+
+        assertEq(safebox.custodians(address(1)), 0, "Pre-condition failed: ward not removed");
     }
 
     function testFuzzAnyoneCanDeposit(address sender) public {
@@ -75,10 +97,10 @@ contract SafeboxTest is Test {
         vm.startPrank(sender);
         usdx.approve(address(safebox), type(uint256).max);
 
-        vm.expectEmit(true, false, false, true);
-        emit Deposit(address(usdx), amount);
-
         assertEq(usdx.balanceOf(address(safebox)), 0, "Pre-condition failed: safebox balance not zero");
+
+        vm.expectEmit(true, true, false, true);
+        emit Deposit(sender, address(usdx), amount);
 
         safebox.deposit(address(usdx), amount);
 
@@ -90,10 +112,10 @@ contract SafeboxTest is Test {
         usdx.mint(address(safebox), amount);
         assertEq(usdx.balanceOf(address(safebox)), amount);
 
-        vm.expectEmit(true, false, false, true);
-        emit Withdraw(address(usdx), amount);
-
         assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
+
+        vm.expectEmit(true, true, false, true);
+        emit Withdraw(recipient, address(usdx), amount);
 
         safebox.withdraw(address(usdx), amount);
 
@@ -108,7 +130,7 @@ contract SafeboxTest is Test {
         usdx.mint(address(safebox), amount);
         assertEq(usdx.balanceOf(address(safebox)), amount);
 
-        vm.expectRevert("Safebox/not-owner");
+        vm.expectRevert("Safebox/not-ward");
 
         vm.startPrank(address(sender));
         safebox.withdraw(address(usdx), amount);
@@ -116,17 +138,16 @@ contract SafeboxTest is Test {
 
     function testFuzzAnyoneCanWithdrawWhenVatIsNotLive(address sender) public {
         vm.assume(sender != owner);
+        vat.cage();
 
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
         assertEq(usdx.balanceOf(address(safebox)), amount);
 
-        vm.expectEmit(true, false, false, true);
-        emit Withdraw(address(usdx), amount);
-
         assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
 
-        vat.cage();
+        vm.expectEmit(true, true, false, true);
+        emit Withdraw(recipient, address(usdx), amount);
 
         vm.startPrank(address(sender));
         safebox.withdraw(address(usdx), amount);
@@ -184,11 +205,12 @@ contract SafeboxTest is Test {
 
     event Rely(address indexed usr);
     event Deny(address indexed usr);
-    event Hope(address indexed usr);
+    event AddCustodian(address indexed usr);
+    event RemoveCustodian(address indexed usr);
     event File(bytes32 indexed what, address data);
     event RecipientChange(address indexed recipient);
-    event Deposit(address indexed token, uint256 amount);
-    event Withdraw(address indexed token, uint256 amount);
+    event Deposit(address indexed sender, address indexed token, uint256 amount);
+    event Withdraw(address indexed recipient, address indexed token, uint256 amount);
 }
 
 contract ERC20 is ERC20Abstract {
