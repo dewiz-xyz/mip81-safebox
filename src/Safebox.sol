@@ -17,6 +17,7 @@ pragma solidity ^0.8.16;
 
 import {VatAbstract} from "dss-interfaces/dss/VatAbstract.sol";
 import {GemAbstract} from "dss-interfaces/ERC/GemAbstract.sol";
+import {SafeboxLike} from "./SafeboxLike.sol";
 
 /**
  * @author amusingaxl
@@ -28,65 +29,21 @@ import {GemAbstract} from "dss-interfaces/ERC/GemAbstract.sol";
  *     - This prevents tokens being stuck in this contract when the governance smart contract is no longer operational.
  * - The `custodian` cooperation is required whenever the `owner` wants to update the `recipient`.
  */
-contract Safebox {
+contract Safebox is SafeboxLike {
     /// @notice MCD Vat module.
-    VatAbstract public immutable vat;
+    VatAbstract public immutable override vat;
     /// @notice The ERC-20 token to be held in this contract.
-    GemAbstract public immutable token;
+    GemAbstract public immutable override token;
 
     /// @notice Addresses with owner access on this contract. `wards[usr]`
-    mapping(address => uint256) public wards;
+    mapping(address => uint256) public override wards;
     /// @notice Addresses with custodian access on this contract. `custodians[usr]`
-    mapping(address => uint256) public custodians;
+    mapping(address => uint256) public override custodians;
 
     /// @notice The recipient for the tokens held in this contract.
-    address public recipient;
+    address public override recipient;
     /// @notice Reference to the new recipient when it is to be changed.
-    address public pendingRecipient;
-
-    /**
-     * @notice `usr` was granted owner access.
-     * @param usr The user address.
-     */
-    event Rely(address indexed usr);
-    /**
-     * @notice `usr` owner access was revoked.
-     * @param usr The user address.
-     */
-    event Deny(address indexed usr);
-    /**
-     * @notice A contract parameter was updated.
-     * @param what The changed parameter name. The supported values are: "recipient".
-     * @param data The new value of the parameter.
-     */
-    event File(bytes32 indexed what, address data);
-    /**
-     * @notice The owner withdrawn tokens from the safebox.
-     * @param recipient The token recipient.
-     * @param amount The amount withdrawn.
-     */
-    event Withdraw(address indexed recipient, uint256 amount);
-    /**
-     * @notice A deposit was made into the safebox.
-     * @param sender The token sender.
-     * @param amount The amount deposited.
-     */
-    event Deposit(address indexed sender, uint256 amount);
-    /**
-     * @notice `usr` was granted custodian access.
-     * @param usr The user address.
-     */
-    event AddCustodian(address indexed usr);
-    /**
-     * @notice `usr` custodian access was revoked.
-     * @param usr The user address.
-     */
-    event RemoveCustodian(address indexed usr);
-    /**
-     * @notice The recipient has been sucessfully changed.
-     * @param recipient The new recipient address.
-     */
-    event RecipientChange(address indexed recipient);
+    address public override pendingRecipient;
 
     modifier auth() {
         require(wards[msg.sender] == 1, "Safebox/not-ward");
@@ -128,7 +85,7 @@ contract Safebox {
      * @dev Anyone can call this function after MakerDAO governance executes an Emergency Shutdown.
      * @param amount The amount of tokens.
      */
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 amount) external override {
         require(wards[msg.sender] == 1 || vat.live() == 0, "Safebox/not-ward");
 
         token.transfer(recipient, amount);
@@ -139,7 +96,7 @@ contract Safebox {
      * @notice Deposits tokens into this contract.
      * @param amount The amount of tokens.
      */
-    function deposit(uint256 amount) external {
+    function deposit(uint256 amount) external override {
         token.transferFrom(msg.sender, address(this), amount);
         emit Deposit(msg.sender, amount);
     }
@@ -152,7 +109,7 @@ contract Safebox {
      * @notice Grants `usr` owner access to this contract.
      * @param usr The user address.
      */
-    function rely(address usr) external auth {
+    function rely(address usr) external override auth {
         wards[usr] = 1;
         emit Rely(usr);
     }
@@ -161,7 +118,7 @@ contract Safebox {
      * @notice Revokes `usr` owner access from this contract.
      * @param usr The user address.
      */
-    function deny(address usr) external auth {
+    function deny(address usr) external override auth {
         wards[usr] = 0;
         emit Deny(usr);
     }
@@ -171,7 +128,7 @@ contract Safebox {
      * @param what The changed parameter name. `"recipient"`
      * @param data The new value of the parameter.
      */
-    function file(bytes32 what, address data) external auth {
+    function file(bytes32 what, address data) external override auth {
         require(vat.live() == 1, "Safebox/vat-not-live");
 
         if (what == "recipient") {
@@ -192,7 +149,7 @@ contract Safebox {
      * @param usr The user address.
      * @return Whether `usr` is a ward or not.
      */
-    function isOwner(address usr) external view returns (bool) {
+    function isOwner(address usr) external view override returns (bool) {
         return wards[usr] == 1;
     }
 
@@ -201,7 +158,7 @@ contract Safebox {
      * @param usr The user address.
      * @return Whether `usr` is a ward or not.
      */
-    function isCustodian(address usr) external view returns (bool) {
+    function isCustodian(address usr) external view override returns (bool) {
         return custodians[usr] == 1;
     }
 
@@ -209,7 +166,7 @@ contract Safebox {
      * @notice Adds a new custodian to this contract.
      * @param usr The user address.
      */
-    function addCustodian(address usr) external onlyCustodian {
+    function addCustodian(address usr) external override onlyCustodian {
         custodians[usr] = 1;
         emit AddCustodian(usr);
     }
@@ -218,7 +175,7 @@ contract Safebox {
      * @notice Removes a custodian from this contract.
      * @param usr The user address.
      */
-    function removeCustodian(address usr) external onlyCustodian {
+    function removeCustodian(address usr) external override onlyCustodian {
         custodians[usr] = 0;
         emit RemoveCustodian(usr);
     }
@@ -228,7 +185,7 @@ contract Safebox {
      * @dev Reverts if `pendingRecipient` has not been set or if `_recipient` does not match it.
      * @param _recipient The new recipient being approved.
      */
-    function approveChangeRecipient(address _recipient) external {
+    function approveChangeRecipient(address _recipient) external override {
         require(custodians[msg.sender] == 1, "Safebox/not-custodian");
         require(pendingRecipient != address(0) && pendingRecipient == _recipient, "Safebox/recipient-mismatch");
 
