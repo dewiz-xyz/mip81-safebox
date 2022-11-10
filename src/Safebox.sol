@@ -94,15 +94,6 @@ contract Safebox is SafeboxLike {
         emit Withdraw(recipient, amount);
     }
 
-    /**
-     * @notice Deposits tokens into this contract.
-     * @param amount The amount of tokens.
-     */
-    function deposit(uint256 amount) external override {
-        token.transferFrom(msg.sender, address(this), amount);
-        emit Deposit(msg.sender, amount);
-    }
-
     /*//////////////////////////////////
             MakerDAO Interfaces
     //////////////////////////////////*/

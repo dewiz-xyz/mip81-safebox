@@ -42,12 +42,6 @@ interface SafeboxLike {
      */
     event Withdraw(address indexed recipient, uint256 amount);
     /**
-     * @notice A deposit was made into the safebox.
-     * @param sender The token sender.
-     * @param amount The amount deposited.
-     */
-    event Deposit(address indexed sender, uint256 amount);
-    /**
      * @notice `usr` was granted custodian access.
      * @param usr The user address.
      */
@@ -86,11 +80,6 @@ interface SafeboxLike {
      * @dev Anyone can call this function after MakerDAO governance executes an Emergency Shutdown.
      */
     function withdraw(uint256) external;
-
-    /**
-     * @notice Deposits tokens into this contract.
-     */
-    function deposit(uint256) external;
 
     /*//////////////////////////////////
             MakerDAO Interfaces

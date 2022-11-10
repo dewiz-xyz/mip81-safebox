@@ -90,25 +90,6 @@ contract SafeboxTest is Test {
         assertEq(safebox.custodians(address(1)), 0, "Pre-condition failed: ward not removed");
     }
 
-    function testFuzzAnyoneCanDeposit(address sender) public {
-        vm.assume(sender != address(safebox));
-
-        uint256 amount = 20;
-        usdx.mint(sender, amount);
-
-        vm.startPrank(sender);
-        usdx.approve(address(safebox), type(uint256).max);
-
-        assertEq(usdx.balanceOf(address(safebox)), 0, "Pre-condition failed: safebox balance not zero");
-
-        vm.expectEmit(true, true, false, true);
-        emit Deposit(sender, amount);
-
-        safebox.deposit(amount);
-
-        assertEq(usdx.balanceOf(address(safebox)), amount, "Post-condition failed: invalid safebox balance");
-    }
-
     function testOwnerCanWithdraw() public {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
@@ -211,7 +192,6 @@ contract SafeboxTest is Test {
     event RemoveCustodian(address indexed usr);
     event File(bytes32 indexed what, address data);
     event RecipientChange(address indexed recipient);
-    event Deposit(address indexed sender, uint256 amount);
     event Withdraw(address indexed recipient, uint256 amount);
 }
 
