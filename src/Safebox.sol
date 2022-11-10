@@ -31,29 +31,17 @@ import {SafeboxLike} from "./SafeboxLike.sol";
  */
 contract Safebox is SafeboxLike {
     /// @notice MCD Vat module.
-    VatAbstract public immutable override vat;
+    VatAbstract public immutable vat;
     /// @notice The ERC-20 token to be held in this contract.
-    GemAbstract public immutable override token;
+    GemAbstract public immutable token;
 
     /// @notice Addresses with owner access on this contract. `wards[usr]`
-    mapping(address => uint256) public override wards;
-    /// @notice Addresses with custodian access on this contract. `custodians[usr]`
-    mapping(address => uint256) public override custodians;
+    mapping(address => uint256) public wards;
 
     /// @notice The recipient for the tokens held in this contract.
-    address public override recipient;
+    address public recipient;
     /// @notice Reference to the new recipient when it is to be changed.
-    address public override pendingRecipient;
-
-    modifier auth() {
-        require(wards[msg.sender] == 1, "Safebox/not-ward");
-        _;
-    }
-
-    modifier onlyCustodian() {
-        require(custodians[msg.sender] == 1, "Safebox/not-custodian");
-        _;
-    }
+    address public pendingRecipient;
 
     /**
      * @param _vat The MCD vat module.
@@ -65,6 +53,9 @@ contract Safebox is SafeboxLike {
     constructor(address _vat, address _token, address _owner, address _custodian, address _recipient) {
         require(_recipient != address(0), "Safebox/invalid-recipient");
 
+        vat = VatAbstract(_vat);
+        token = GemAbstract(_token);
+
         wards[_owner] = 1;
         emit Rely(_owner);
 
@@ -73,9 +64,6 @@ contract Safebox is SafeboxLike {
 
         recipient = _recipient;
         emit SetRecipient(_recipient);
-
-        vat = VatAbstract(_vat);
-        token = GemAbstract(_token);
     }
 
     /*//////////////////////////////////
@@ -87,7 +75,7 @@ contract Safebox is SafeboxLike {
      * @dev Anyone can call this function after MakerDAO governance executes an Emergency Shutdown.
      * @param amount The amount of tokens.
      */
-    function withdraw(uint256 amount) external override {
+    function withdraw(uint256 amount) external {
         require(wards[msg.sender] == 1 || vat.live() == 0, "Safebox/not-ward");
 
         token.transfer(recipient, amount);
@@ -98,11 +86,16 @@ contract Safebox is SafeboxLike {
             MakerDAO Interfaces
     //////////////////////////////////*/
 
+    modifier auth() {
+        require(wards[msg.sender] == 1, "Safebox/not-ward");
+        _;
+    }
+
     /**
      * @notice Grants `usr` owner access to this contract.
      * @param usr The user address.
      */
-    function rely(address usr) external override auth {
+    function rely(address usr) external auth {
         wards[usr] = 1;
         emit Rely(usr);
     }
@@ -111,17 +104,19 @@ contract Safebox is SafeboxLike {
      * @notice Revokes `usr` owner access from this contract.
      * @param usr The user address.
      */
-    function deny(address usr) external override auth {
+    function deny(address usr) external auth {
         wards[usr] = 0;
         emit Deny(usr);
     }
 
     /**
      * @notice Updates a contract parameter.
+     * @dev When setting the `recipient`, `data` cannot be `address(0)` because
+     * we need to make sure `pendingRecipient` will only work if it is initialized.
      * @param what The changed parameter name. `"recipient"`
      * @param data The new value of the parameter.
      */
-    function file(bytes32 what, address data) external override auth {
+    function file(bytes32 what, address data) external auth {
         require(vat.live() == 1, "Safebox/vat-not-live");
 
         if (what == "recipient") {
@@ -137,12 +132,20 @@ contract Safebox is SafeboxLike {
             Custodian Interfaces
     //////////////////////////////////*/
 
+    /// @notice Addresses with custodian access on this contract. `custodians[usr]`
+    mapping(address => uint256) public custodians;
+
+    modifier onlyCustodian() {
+        require(custodians[msg.sender] == 1, "Safebox/not-custodian");
+        _;
+    }
+
     /**
      * @notice Check if an address has `owner` access on this contract.
      * @param usr The user address.
      * @return Whether `usr` is a ward or not.
      */
-    function isOwner(address usr) external view override returns (bool) {
+    function isOwner(address usr) external view returns (bool) {
         return wards[usr] == 1;
     }
 
@@ -151,7 +154,7 @@ contract Safebox is SafeboxLike {
      * @param usr The user address.
      * @return Whether `usr` is a custodian or not.
      */
-    function isCustodian(address usr) external view override returns (bool) {
+    function isCustodian(address usr) external view returns (bool) {
         return custodians[usr] == 1;
     }
 
@@ -159,7 +162,7 @@ contract Safebox is SafeboxLike {
      * @notice Adds a new custodian to this contract.
      * @param usr The user address.
      */
-    function addCustodian(address usr) external override onlyCustodian {
+    function addCustodian(address usr) external onlyCustodian {
         custodians[usr] = 1;
         emit AddCustodian(usr);
     }
@@ -168,7 +171,7 @@ contract Safebox is SafeboxLike {
      * @notice Removes a custodian from this contract.
      * @param usr The user address.
      */
-    function removeCustodian(address usr) external override onlyCustodian {
+    function removeCustodian(address usr) external onlyCustodian {
         custodians[usr] = 0;
         emit RemoveCustodian(usr);
     }
@@ -178,7 +181,7 @@ contract Safebox is SafeboxLike {
      * @dev Reverts if `pendingRecipient` has not been set or if `_recipient` does not match it.
      * @param _recipient The new recipient being approved.
      */
-    function approveChangeRecipient(address _recipient) external override onlyCustodian {
+    function approveChangeRecipient(address _recipient) external onlyCustodian {
         require(pendingRecipient != address(0) && pendingRecipient == _recipient, "Safebox/recipient-mismatch");
 
         recipient = _recipient;
