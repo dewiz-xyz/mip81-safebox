@@ -71,9 +71,11 @@ contract Safebox is SafeboxLike {
         custodians[_custodian] = 1;
         emit AddCustodian(_custodian);
 
+        recipient = _recipient;
+        emit SetRecipient(_recipient);
+
         vat = VatAbstract(_vat);
         token = GemAbstract(_token);
-        recipient = _recipient;
     }
 
     /*//////////////////////////////////
@@ -156,7 +158,7 @@ contract Safebox is SafeboxLike {
     /**
      * @notice Check if an address has `custodian` access on this contract.
      * @param usr The user address.
-     * @return Whether `usr` is a ward or not.
+     * @return Whether `usr` is a custodian or not.
      */
     function isCustodian(address usr) external view override returns (bool) {
         return custodians[usr] == 1;
@@ -185,13 +187,12 @@ contract Safebox is SafeboxLike {
      * @dev Reverts if `pendingRecipient` has not been set or if `_recipient` does not match it.
      * @param _recipient The new recipient being approved.
      */
-    function approveChangeRecipient(address _recipient) external override {
-        require(custodians[msg.sender] == 1, "Safebox/not-custodian");
+    function approveChangeRecipient(address _recipient) external override onlyCustodian {
         require(pendingRecipient != address(0) && pendingRecipient == _recipient, "Safebox/recipient-mismatch");
 
         recipient = _recipient;
         pendingRecipient = address(0);
 
-        emit RecipientChange(_recipient);
+        emit SetRecipient(_recipient);
     }
 }

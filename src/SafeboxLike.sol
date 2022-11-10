@@ -58,10 +58,10 @@ interface SafeboxLike {
      */
     event RemoveCustodian(address indexed usr);
     /**
-     * @notice The recipient has been sucessfully changed.
+     * @notice The recipient has been set.
      * @param recipient The new recipient address.
      */
-    event RecipientChange(address indexed recipient);
+    event SetRecipient(address indexed recipient);
 
     /// @notice MCD Vat module.
     function vat() external view returns (VatAbstract);
