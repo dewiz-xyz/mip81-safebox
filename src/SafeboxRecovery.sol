@@ -84,10 +84,10 @@ contract SafeboxRecovery {
      */
     constructor(address _vat, address _token, address _safebox, address _gem) {
         // Both `vat` and `token` are immutable on Safebox, so we can safely extract it here to save some gas later.
-        GemAbstract __token = SafeboxLike(_safebox).token();
         VatAbstract __vat = SafeboxLike(_safebox).vat();
-
         require(_vat == address(__vat), "SafeboxRecovery/vat-mismatch");
+
+        GemAbstract __token = SafeboxLike(_safebox).token();
         require(_token == address(__token), "SafeboxRecovery/token-mismatch");
 
         uint8 tokenDecimals = __token.decimals();
@@ -105,9 +105,9 @@ contract SafeboxRecovery {
 
         conversionFactor = 10 ** (gemDecimals - tokenDecimals);
 
-        safebox = SafeboxLike(_safebox);
         vat = __vat;
         token = __token;
+        safebox = SafeboxLike(_safebox);
         gem = __gem;
     }
 
