@@ -48,6 +48,7 @@ contract Safebox is SafeboxLike {
     uint256 public requestedWithdrawalAmount;
 
     event WithdrawRequested(address sender, uint256 amount, uint256 timestamp);
+    event WithdrawDenied(address sender, uint256 amount, uint256 timestamp);
 
     /**
      * @param _vat The MCD vat module.
@@ -116,6 +117,8 @@ contract Safebox is SafeboxLike {
     }
 
     function denyWithdrawal() external onlyCustodian {
+        emit WithdrawDenied(msg.sender, requestedWithdrawalAmount, requestedWithdrawalTime);
+
         requestedWithdrawalAmount = 0;
         requestedWithdrawalTime = 0;
     }
