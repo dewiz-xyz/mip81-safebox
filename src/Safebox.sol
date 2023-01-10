@@ -123,13 +123,6 @@ contract Safebox is SafeboxLike {
         requestedWithdrawalTime = 0;
     }
 
-    function withdraw(uint256 amount) external {
-        require(wards[msg.sender] == 1 || vat.live() == 0, "Safebox/not-ward");
-
-        token.transfer(recipient, amount);
-        emit Withdraw(recipient, amount);
-    }
-
     /*//////////////////////////////////
             MakerDAO Interfaces
     //////////////////////////////////*/
