@@ -43,6 +43,13 @@ contract Safebox is SafeboxLike {
     /// @notice Reference to the new recipient when it is to be changed.
     address public pendingRecipient;
 
+    uint256 public constant WITHDRAW_DELAY = 86400; // 24 hours
+    uint256 public requestedWithdrawalTime;
+    uint256 public requestedWithdrawalAmount;
+
+    event WithdrawRequested(address sender, uint256 amount, uint256 timestamp);
+    event WithdrawDenied(address sender, uint256 amount, uint256 timestamp);
+
     /**
      * @param _vat The MCD vat module.
      * @param _token The ERC-20 token to be held in this contract.
@@ -50,11 +57,19 @@ contract Safebox is SafeboxLike {
      * @param _custodian The safebox custodian.
      * @param _recipient The recipient for tokens in the safebox.
      */
-    constructor(address _vat, address _token, address _owner, address _custodian, address _recipient) {
+    constructor(
+        address _vat,
+        address _token,
+        address _owner,
+        address _custodian,
+        address _recipient
+    ) {
         require(_recipient != address(0), "Safebox/invalid-recipient");
 
         vat = VatAbstract(_vat);
         token = GemAbstract(_token);
+        requestedWithdrawalTime = 0;
+        requestedWithdrawalAmount = 0;
 
         wards[_owner] = 1;
         emit Rely(_owner);
@@ -71,15 +86,41 @@ contract Safebox is SafeboxLike {
     //////////////////////////////////*/
 
     /**
-     * @notice Withdraws tokens from this contract.
+     * @notice Request a withdrawal of tokens from this contract.
      * @dev Anyone can call this function after MakerDAO governance executes an Emergency Shutdown.
      * @param amount The amount of tokens.
      */
-    function withdraw(uint256 amount) external {
+    function requestWithdrawal(uint256 amount) external {
         require(wards[msg.sender] == 1 || vat.live() == 0, "Safebox/not-ward");
+        require(requestedWithdrawalAmount > 0, "Safebox/invalid-amount");
 
-        token.transfer(recipient, amount);
-        emit Withdraw(recipient, amount);
+        requestedWithdrawalAmount = amount;
+        requestedWithdrawalTime = block.timestamp;
+
+        emit WithdrawRequested(msg.sender, amount, block.timestamp);
+    }
+
+    /**
+     * @notice Executes a withdrawal request of tokens from this contract.
+     * @dev Anyone can call this function after the 24hr WITHDRAWL_DELAY period.
+     */
+    function executeWithdrawal() external {
+        require(requestedWithdrawalTime != 0, "Safebox/invalid-time");
+        require(requestedWithdrawalAmount > 0, "Safebox/invalid-amount");
+        require(requestedWithdrawalTime + WITHDRAW_DELAY < block.timestamp, "Safebox/timestamp-not-in-range");
+
+        requestedWithdrawalAmount = 0;
+        requestedWithdrawalTime = 0;
+
+        token.transfer(recipient, requestedWithdrawalAmount);
+        emit Withdraw(recipient, requestedWithdrawalAmount);
+    }
+
+    function denyWithdrawal() external onlyCustodian {
+        emit WithdrawDenied(msg.sender, requestedWithdrawalAmount, requestedWithdrawalTime);
+
+        requestedWithdrawalAmount = 0;
+        requestedWithdrawalTime = 0;
     }
 
     /*//////////////////////////////////
