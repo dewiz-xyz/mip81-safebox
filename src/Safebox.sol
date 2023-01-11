@@ -23,13 +23,13 @@ import {GemAbstract} from "dss-interfaces/ERC/GemAbstract.sol";
  * @title A safebox for ERC-20 tokens.
  * @notice
  * - The `owner`(MakerDAO Governance) can request funds to be sent to `recipient`.
- * - The `custodian`(Coinbase) can deny a request for funds up to `WITHDRAWAL_TIMELOCK` after the request was made.
+ * - The `custodian`(Coinbase) can deny a request for funds up to `WITHDRAWAL_TIMELOCK` after it was made.
  * - If MakerDAO governance ever executes an Emergency Shutdown, anyone can send tokens to `recipient`.
  *     - This prevents tokens being stuck in this contract when the governance smart contract is no longer operational.
  * - The `custodian` cooperation is required whenever the `owner` wants to update the `recipient`.
  */
 contract Safebox {
-    /// @notice Time windown through which the custodian can deny a withdrawal request.
+    /// @notice Time window through which the custodian can deny a withdrawal request.
     uint256 public constant WITHDRAWAL_TIMELOCK = 1 days;
 
     /// @notice MCD Vat module.
