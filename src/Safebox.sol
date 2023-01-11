@@ -173,7 +173,7 @@ contract Safebox {
         require(requestedWithdrawalTime > 0 && requestedWithdrawalAmount > 0, "Safebox/no-pending-withdrawal");
         require(
             (custodians[msg.sender] == 1) || (requestedWithdrawalTime + WITHDRAWAL_TIMELOCK < block.timestamp),
-            "Safebox/ative-timelock"
+            "Safebox/active-timelock"
         );
 
         uint256 amount = requestedWithdrawalAmount;

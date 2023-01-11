@@ -219,7 +219,7 @@ contract SafeboxTest is Test {
         safebox.requestWithdrawal(amount);
         skip(safebox.WITHDRAWAL_TIMELOCK() - 1);
 
-        vm.expectRevert("Safebox/ative-timelock");
+        vm.expectRevert("Safebox/active-timelock");
         vm.startPrank(sender);
         safebox.executeWithdrawal();
     }
