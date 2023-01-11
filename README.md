@@ -11,12 +11,15 @@ A safebox for digital assets.
 
 ## Overview
 
-There are 3 "roles" in this contract:
+There are 4 "roles" in this contract:
 
-1. `owner`: can request funds to be sent to `recipient`.
-2. `custodian`: can deny a request for funds up to `WITHDRAWAL_TIMELOCK` after it was made; approves changes in
-   the `recipient` address made by an `owner`.
-3. `recipient`: receives assets from the safebox.
+1. `owner`: can request an withdrawal so funds are sent to `recipient`.
+2. `custodian`:
+   1. Can execute a withdrawal right the way;
+   2. Can deny a request for `WITHDRAWAL_TIMELOCK` after it was made;
+   3. Can approve changes in the `recipient` address made by an `owner`.
+3. _Anyone_ can execute a withdrawal **after** `WITHDRAWAL_TIMELOCK`.
+4. `recipient`: receives assets from the safebox.
 
 `owner` and `custodian` are immutable. If they need to be replaced, a new contract needs to be deployed with the updated
 addresses.
@@ -63,6 +66,8 @@ There is only 1 possible way of making a deposit into the `Safebox`:
    ```solidity
    safebox.executeWithdrawal()
    ```
+
+**NOTICE**: a `custodian` can call `executeWithdrawal()` at any time, bypassing the timelock.
 
 ### Cancel withdrawal
 

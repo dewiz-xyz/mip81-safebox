@@ -167,11 +167,14 @@ contract Safebox {
 
     /**
      * @notice Executes a withdrawal request of tokens from this contract.
-     * @dev Anyone can call this function after the WITHDRAWL_DELAY period.
+     * @dev Custodian can call this function any time. Anyone can call this after the WITHDRAWL_DELAY period.
      */
     function executeWithdrawal() external {
         require(requestedWithdrawalTime > 0 && requestedWithdrawalAmount > 0, "Safebox/no-pending-withdrawal");
-        require(requestedWithdrawalTime + WITHDRAWAL_TIMELOCK < block.timestamp, "Safebox/ative-timelock");
+        require(
+            (custodians[msg.sender] == 1) || (requestedWithdrawalTime + WITHDRAWAL_TIMELOCK < block.timestamp),
+            "Safebox/ative-timelock"
+        );
 
         uint256 amount = requestedWithdrawalAmount;
         requestedWithdrawalAmount = 0;
