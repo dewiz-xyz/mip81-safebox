@@ -90,23 +90,30 @@ contract SafeboxTest is Test {
         assertEq(safebox.custodians(address(1)), 0, "Pre-condition failed: ward not removed");
     }
 
-    function testOwnerCanWithdraw() public {
+    function testOwnerCanRequestWithdrawal() public {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
-        assertEq(usdx.balanceOf(address(safebox)), amount);
 
+        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
         assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
 
         vm.expectEmit(true, true, false, true);
-        emit Withdraw(recipient, amount);
+        emit RequestWithdrawal(address(this), amount);
 
-        safebox.withdraw(amount);
-
-        assertEq(usdx.balanceOf(address(safebox)), 0, "Post-condition failed: invalid safebox balance");
-        assertEq(usdx.balanceOf(recipient), amount, "Post-condition failed: invalid recipient balance");
+        safebox.requestWithdrawal(amount);
     }
 
-    function testFuzzCannotWithdrawWhenNotOwner(address sender) public {
+    function testRevertCannotRequestMultipleWithdrawals() public {
+        uint256 amount = 123;
+        usdx.mint(address(safebox), amount);
+
+        safebox.requestWithdrawal(amount);
+
+        vm.expectRevert("Safebox/pending-withdrawal");
+        safebox.requestWithdrawal(amount + 1);
+    }
+
+    function testFuzzCannotRequestWithdrawalWhenNotOwner(address sender) public {
         vm.assume(sender != owner);
 
         uint256 amount = 123;
@@ -116,27 +123,102 @@ contract SafeboxTest is Test {
         vm.expectRevert("Safebox/not-ward");
 
         vm.startPrank(address(sender));
-        safebox.withdraw(amount);
+        safebox.requestWithdrawal(amount);
     }
 
-    function testFuzzAnyoneCanWithdrawWhenVatIsNotLive(address sender) public {
+    function testFuzzAnyoneCanRequestWithdrawalWhenVatIsNotLive(address sender) public {
         vm.assume(sender != owner && sender != address(safebox));
         vat.cage();
 
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
-        assertEq(usdx.balanceOf(address(safebox)), amount);
 
+        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
         assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
 
-        vm.expectEmit(true, true, false, true);
-        emit Withdraw(recipient, amount);
+        vm.expectEmit(true, false, false, true);
+        emit RequestWithdrawal(address(sender), amount);
 
         vm.startPrank(address(sender));
-        safebox.withdraw(amount);
+        safebox.requestWithdrawal(amount);
+    }
+
+    function testOwnerCanCancelWithdrawal() public {
+        uint256 amount = 123;
+        usdx.mint(address(safebox), amount);
+
+        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
+        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
+
+        safebox.requestWithdrawal(amount);
+
+        vm.expectEmit(true, false, false, true);
+        emit CancelWithdrawal(address(this), amount);
+
+        safebox.cancelWithdrawal();
+
+        assertEq(usdx.balanceOf(address(safebox)), amount, "Post-condition failed: bad safebox balance");
+        assertEq(usdx.balanceOf(recipient), 0, "Post-condition failed: recipient balance not zero");
+    }
+
+    function testRevertCannotCancelWithdrawalWhenNotRequested() public {
+        vm.expectRevert("Safebox/no-pending-withdrawal");
+        safebox.cancelWithdrawal();
+    }
+
+    function testFuzzAnyoneCanExecuteWithdrawal(address sender) public {
+        uint256 amount = 123;
+        usdx.mint(address(safebox), amount);
+
+        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
+        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
+
+        safebox.requestWithdrawal(amount);
+        skip(safebox.WITHDRAWAL_TIMELOCK() + 1);
+
+        vm.expectEmit(true, true, false, true);
+        emit ExecuteWithdrawal(address(sender), recipient, amount);
+
+        vm.startPrank(address(sender));
+        safebox.executeWithdrawal();
 
         assertEq(usdx.balanceOf(address(safebox)), 0, "Post-condition failed: invalid safebox balance");
         assertEq(usdx.balanceOf(recipient), amount, "Post-condition failed: invalid recipient balance");
+    }
+
+    function testRevertCannotExecuteWithdrawalWhenNotRequested() public {
+        vm.expectRevert("Safebox/no-pending-withdrawal");
+        safebox.executeWithdrawal();
+    }
+
+    function testRevertCannotExecuteADeniedWithdrawal() public {
+        uint256 amount = 123;
+        usdx.mint(address(safebox), amount);
+
+        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
+        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
+
+        safebox.requestWithdrawal(amount);
+
+        vm.expectEmit(true, true, false, true);
+        emit DenyWithdrawal(custodian, amount);
+
+        vm.prank(custodian);
+        safebox.denyWithdrawal();
+
+        skip(safebox.WITHDRAWAL_TIMELOCK() + 1);
+
+        vm.expectRevert("Safebox/no-pending-withdrawal");
+        safebox.executeWithdrawal();
+    }
+
+    function testRevertCannotDenyWhenNotCustodian(address sender) public {
+        vm.assume(sender != custodian);
+
+        vm.expectRevert("Safebox/not-custodian");
+
+        vm.prank(sender);
+        safebox.denyWithdrawal();
     }
 
     function testChangeRecipient() public {
@@ -192,7 +274,10 @@ contract SafeboxTest is Test {
     event RemoveCustodian(address indexed usr);
     event File(bytes32 indexed what, address data);
     event RecipientChange(address indexed recipient);
-    event Withdraw(address indexed recipient, uint256 amount);
+    event RequestWithdrawal(address indexed sender, uint256 amount);
+    event ExecuteWithdrawal(address indexed sender, address indexed recipient, uint256 amount);
+    event CancelWithdrawal(address indexed sender, uint256 amount);
+    event DenyWithdrawal(address indexed sender, uint256 amount);
 }
 
 contract ERC20 is ERC20Abstract {

@@ -17,19 +17,21 @@ pragma solidity ^0.8.16;
 
 import {VatAbstract} from "dss-interfaces/dss/VatAbstract.sol";
 import {GemAbstract} from "dss-interfaces/ERC/GemAbstract.sol";
-import {SafeboxLike} from "./SafeboxLike.sol";
 
 /**
  * @author amusingaxl
  * @title A safebox for ERC-20 tokens.
  * @notice
- * - The `owner`(MakerDAO Governance) is in full control of how much and when it can send tokens to `recipient`.
- *     - MakerDAO Governance could add other owners if required in the future (i.e.: automation of the Safebox balance).
+ * - The `owner`(MakerDAO Governance) can request funds to be sent to `recipient`.
+ * - The `custodian`(Coinbase) can deny a request for funds up to `WITHDRAWAL_TIMELOCK` after the request was made.
  * - If MakerDAO governance ever executes an Emergency Shutdown, anyone can send tokens to `recipient`.
  *     - This prevents tokens being stuck in this contract when the governance smart contract is no longer operational.
  * - The `custodian` cooperation is required whenever the `owner` wants to update the `recipient`.
  */
-contract Safebox is SafeboxLike {
+contract Safebox {
+    /// @notice Time windown through which the custodian can deny a withdrawal request.
+    uint256 public constant WITHDRAWAL_TIMELOCK = 1 days;
+
     /// @notice MCD Vat module.
     VatAbstract public immutable vat;
     /// @notice The ERC-20 token to be held in this contract.
@@ -43,12 +45,67 @@ contract Safebox is SafeboxLike {
     /// @notice Reference to the new recipient when it is to be changed.
     address public pendingRecipient;
 
-    uint256 public constant WITHDRAW_DELAY = 86400; // 24 hours
+    /// @notice The last time a withdrawal request was made.
     uint256 public requestedWithdrawalTime;
+    /// @notice The last withdrawal request amount.
     uint256 public requestedWithdrawalAmount;
 
-    event WithdrawRequested(address sender, uint256 amount, uint256 timestamp);
-    event WithdrawDenied(address sender, uint256 amount, uint256 timestamp);
+    /**
+     * @notice `usr` was granted owner access.
+     * @param usr The user address.
+     */
+    event Rely(address indexed usr);
+    /**
+     * @notice `usr` owner access was revoked.
+     * @param usr The user address.
+     */
+    event Deny(address indexed usr);
+    /**
+     * @notice A contract parameter was updated.
+     * @param what The changed parameter name. The supported values are: "recipient".
+     * @param data The new value of the parameter.
+     */
+    event File(bytes32 indexed what, address data);
+    /**
+     * @notice A withdrawal was requested.
+     * @param sender The request sender.
+     * @param amount The requested amount.
+     */
+    event RequestWithdrawal(address indexed sender, uint256 amount);
+    /**
+     * @notice A withdrawal was executed.
+     * @param sender The request sender.
+     * @param recipient The recipient for the withdrawal.
+     * @param amount The amount withdrawn.
+     */
+    event ExecuteWithdrawal(address indexed sender, address indexed recipient, uint256 amount);
+    /**
+     * @notice A withdrawal was canceled by the owner.
+     * @param sender The request sender.
+     * @param amount The amount of the canceled withdrawal.
+     */
+    event CancelWithdrawal(address indexed sender, uint256 amount);
+    /**
+     * @notice A withdrawal request was denied.
+     * @param sender The request sender.
+     * @param amount The requested sender.
+     */
+    event DenyWithdrawal(address indexed sender, uint256 amount);
+    /**
+     * @notice `usr` was granted custodian access.
+     * @param usr The user address.
+     */
+    event AddCustodian(address indexed usr);
+    /**
+     * @notice `usr` custodian access was revoked.
+     * @param usr The user address.
+     */
+    event RemoveCustodian(address indexed usr);
+    /**
+     * @notice The recipient has been set.
+     * @param recipient The new recipient address.
+     */
+    event SetRecipient(address indexed recipient);
 
     /**
      * @param _vat The MCD vat module.
@@ -57,13 +114,7 @@ contract Safebox is SafeboxLike {
      * @param _custodian The safebox custodian.
      * @param _recipient The recipient for tokens in the safebox.
      */
-    constructor(
-        address _vat,
-        address _token,
-        address _owner,
-        address _custodian,
-        address _recipient
-    ) {
+    constructor(address _vat, address _token, address _owner, address _custodian, address _recipient) {
         require(_recipient != address(0), "Safebox/invalid-recipient");
 
         vat = VatAbstract(_vat);
@@ -92,35 +143,54 @@ contract Safebox is SafeboxLike {
      */
     function requestWithdrawal(uint256 amount) external {
         require(wards[msg.sender] == 1 || vat.live() == 0, "Safebox/not-ward");
-        require(requestedWithdrawalAmount > 0, "Safebox/invalid-amount");
+        require(requestedWithdrawalTime == 0, "Safebox/pending-withdrawal");
+        require(amount > 0, "Safebox/invalid-amount");
 
         requestedWithdrawalAmount = amount;
         requestedWithdrawalTime = block.timestamp;
 
-        emit WithdrawRequested(msg.sender, amount, block.timestamp);
+        emit RequestWithdrawal(msg.sender, amount);
+    }
+
+    /**
+     * @notice Cancels a withdrawal request.
+     */
+    function cancelWithdrawal() external auth {
+        require(requestedWithdrawalTime > 0 && requestedWithdrawalAmount > 0, "Safebox/no-pending-withdrawal");
+
+        uint256 amount = requestedWithdrawalAmount;
+        requestedWithdrawalAmount = 0;
+        requestedWithdrawalTime = 0;
+
+        emit CancelWithdrawal(msg.sender, amount);
     }
 
     /**
      * @notice Executes a withdrawal request of tokens from this contract.
-     * @dev Anyone can call this function after the 24hr WITHDRAWL_DELAY period.
+     * @dev Anyone can call this function after the WITHDRAWL_DELAY period.
      */
     function executeWithdrawal() external {
-        require(requestedWithdrawalTime != 0, "Safebox/invalid-time");
-        require(requestedWithdrawalAmount > 0, "Safebox/invalid-amount");
-        require(requestedWithdrawalTime + WITHDRAW_DELAY < block.timestamp, "Safebox/timestamp-not-in-range");
+        require(requestedWithdrawalTime > 0 && requestedWithdrawalAmount > 0, "Safebox/no-pending-withdrawal");
+        require(requestedWithdrawalTime + WITHDRAWAL_TIMELOCK < block.timestamp, "Safebox/active-withdrawal-delay");
 
+        uint256 amount = requestedWithdrawalAmount;
         requestedWithdrawalAmount = 0;
         requestedWithdrawalTime = 0;
 
-        token.transfer(recipient, requestedWithdrawalAmount);
-        emit Withdraw(recipient, requestedWithdrawalAmount);
+        token.transfer(recipient, amount);
+
+        emit ExecuteWithdrawal(msg.sender, recipient, amount);
     }
 
+    /**
+     * @notice Denies a withdrawal request.
+     */
     function denyWithdrawal() external onlyCustodian {
-        emit WithdrawDenied(msg.sender, requestedWithdrawalAmount, requestedWithdrawalTime);
-
+        uint256 amount = requestedWithdrawalAmount;
         requestedWithdrawalAmount = 0;
         requestedWithdrawalTime = 0;
+
+        emit DenyWithdrawal(msg.sender, amount);
     }
 
     /*//////////////////////////////////
