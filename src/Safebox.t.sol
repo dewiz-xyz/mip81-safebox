@@ -94,16 +94,18 @@ contract SafeboxTest is Test {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
 
-        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
-        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
-
         vm.expectEmit(true, true, false, true);
         emit RequestWithdrawal(address(this), amount);
 
         safebox.requestWithdrawal(amount);
     }
 
-    function testRevertCannotRequestMultipleWithdrawals() public {
+    function testRevertRequestWithdrawalOfZero() public {
+        vm.expectRevert("Safebox/invalid-amount");
+        safebox.requestWithdrawal(0);
+    }
+
+    function testRevertRequestMultipleWithdrawals() public {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
 
@@ -113,7 +115,7 @@ contract SafeboxTest is Test {
         safebox.requestWithdrawal(amount + 1);
     }
 
-    function testFuzzCannotRequestWithdrawalWhenNotOwner(address sender) public {
+    function testFuzzRevertRequestWithdrawalWhenNotOwner(address sender) public {
         vm.assume(sender != owner);
 
         uint256 amount = 123;
@@ -161,7 +163,7 @@ contract SafeboxTest is Test {
         assertEq(usdx.balanceOf(recipient), 0, "Post-condition failed: recipient balance not zero");
     }
 
-    function testRevertCannotCancelWithdrawalWhenNotRequested() public {
+    function testRevertRevertCancelWithdrawalWhenNotRequested() public {
         vm.expectRevert("Safebox/no-pending-withdrawal");
         safebox.cancelWithdrawal();
     }
@@ -186,12 +188,26 @@ contract SafeboxTest is Test {
         assertEq(usdx.balanceOf(recipient), amount, "Post-condition failed: invalid recipient balance");
     }
 
-    function testRevertCannotExecuteWithdrawalWhenNotRequested() public {
+    function testRevertExecuteWithdrawalBeforeTimelock() public {
+        uint256 amount = 123;
+        usdx.mint(address(safebox), amount);
+
+        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
+        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
+
+        safebox.requestWithdrawal(amount);
+        skip(safebox.WITHDRAWAL_TIMELOCK() - 1);
+
+        vm.expectRevert("Safebox/ative-timelock");
+        safebox.executeWithdrawal();
+    }
+
+    function testRevertExecuteWithdrawalWhenNotRequested() public {
         vm.expectRevert("Safebox/no-pending-withdrawal");
         safebox.executeWithdrawal();
     }
 
-    function testRevertCannotExecuteADeniedWithdrawal() public {
+    function testRevertExecuteADeniedWithdrawal() public {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
 
@@ -212,7 +228,7 @@ contract SafeboxTest is Test {
         safebox.executeWithdrawal();
     }
 
-    function testRevertCannotDenyWhenNotCustodian(address sender) public {
+    function testRevertDenyWhenNotCustodian(address sender) public {
         vm.assume(sender != custodian);
 
         vm.expectRevert("Safebox/not-custodian");
@@ -244,7 +260,7 @@ contract SafeboxTest is Test {
         safebox.file("recipient", address(0));
     }
 
-    function testReverChangeRecipientWhenNotCustodian() public {
+    function testRevertChangeRecipientWhenNotCustodian() public {
         address newRecipient = address(0xd34d);
         safebox.file("recipient", newRecipient);
 
@@ -256,7 +272,7 @@ contract SafeboxTest is Test {
         safebox.approveChangeRecipient(newRecipient);
     }
 
-    function testReverChangeRecipientWithMismatchingAddresses() public {
+    function testRevertChangeRecipientWithMismatchingAddresses() public {
         address newRecipient = address(0xd34d);
         safebox.file("recipient", newRecipient);
 

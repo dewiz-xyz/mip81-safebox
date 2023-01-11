@@ -171,7 +171,7 @@ contract Safebox {
      */
     function executeWithdrawal() external {
         require(requestedWithdrawalTime > 0 && requestedWithdrawalAmount > 0, "Safebox/no-pending-withdrawal");
-        require(requestedWithdrawalTime + WITHDRAWAL_TIMELOCK < block.timestamp, "Safebox/active-withdrawal-delay");
+        require(requestedWithdrawalTime + WITHDRAWAL_TIMELOCK < block.timestamp, "Safebox/ative-timelock");
 
         uint256 amount = requestedWithdrawalAmount;
         requestedWithdrawalAmount = 0;
