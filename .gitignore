@@ -12,3 +12,6 @@ broadcast/**/dry-run/
 
 # Node modules
 node_modules/
+
+# Ignore backup files
+*.bkp

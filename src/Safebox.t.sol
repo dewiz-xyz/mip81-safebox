@@ -250,7 +250,29 @@ contract SafeboxTest is Test {
         safebox.executeWithdrawal();
     }
 
-    function testRevertDenyWhenNotCustodian(address sender) public {
+    function testRevertDenyWithdrawalWhenNotRequested() public {
+        vm.expectRevert("Safebox/no-pending-withdrawal");
+        vm.prank(custodian);
+        safebox.denyWithdrawal();
+    }
+
+    function testRevertDenyWithdrawalAfterTimelock() public {
+        uint256 amount = 123;
+        usdx.mint(address(safebox), amount);
+
+        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
+        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
+
+        safebox.requestWithdrawal(amount);
+
+        skip(safebox.WITHDRAWAL_TIMELOCK() + 1);
+
+        vm.expectRevert("Safebox/timelock-expired");
+        vm.prank(custodian);
+        safebox.denyWithdrawal();
+    }
+
+    function testRevertDenyWithdrawalWhenNotCustodian(address sender) public {
         vm.assume(sender != custodian);
 
         vm.expectRevert("Safebox/not-custodian");

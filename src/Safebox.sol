@@ -189,6 +189,9 @@ contract Safebox {
      * @notice Denies a withdrawal request.
      */
     function denyWithdrawal() external onlyCustodian {
+        require(requestedWithdrawalTime > 0 && requestedWithdrawalAmount > 0, "Safebox/no-pending-withdrawal");
+        require(requestedWithdrawalTime + WITHDRAWAL_TIMELOCK >= block.timestamp, "Safebox/timelock-expired");
+
         uint256 amount = requestedWithdrawalAmount;
         requestedWithdrawalAmount = 0;
         requestedWithdrawalTime = 0;
