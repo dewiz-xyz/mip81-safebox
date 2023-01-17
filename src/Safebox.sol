@@ -137,11 +137,19 @@ contract Safebox {
     //////////////////////////////////*/
 
     /**
-     * @notice Request a withdrawal of tokens from this contract.
+     * @notice Requests a withdrawal of all tokens from this contract.
+     * @dev Anyone can call this function after MakerDAO governance executes an Emergency Shutdown.
+     */
+    function requestWithdrawal() external {
+        requestWithdrawal(token.balanceOf(address(this)));
+    }
+
+    /**
+     * @notice Requests a withdrawal of tokens from this contract.
      * @dev Anyone can call this function after MakerDAO governance executes an Emergency Shutdown.
      * @param amount The amount of tokens.
      */
-    function requestWithdrawal(uint256 amount) external {
+    function requestWithdrawal(uint256 amount) public {
         require(wards[msg.sender] == 1 || vat.live() == 0, "Safebox/not-ward");
         require(requestedWithdrawalTime == 0, "Safebox/pending-withdrawal");
         require(amount > 0, "Safebox/invalid-amount");
@@ -154,9 +162,11 @@ contract Safebox {
 
     /**
      * @notice Cancels a withdrawal request.
+     * @dev Reverts if the Vat is not live.
      */
     function cancelWithdrawal() external auth {
         require(requestedWithdrawalTime > 0 && requestedWithdrawalAmount > 0, "Safebox/no-pending-withdrawal");
+        require(vat.live() == 1, "Safebox/vat-not-live");
 
         uint256 amount = requestedWithdrawalAmount;
         requestedWithdrawalAmount = 0;
@@ -167,12 +177,15 @@ contract Safebox {
 
     /**
      * @notice Executes a withdrawal request of tokens from this contract.
-     * @dev Custodian can call this function any time. Anyone can call this after the WITHDRAWL_DELAY period.
+     * @dev Custodian can call this function any time.
+     * @dev Anyone can call this after the WITHDRAWL_DELAY period or immediately if the Vat is not live.
      */
     function executeWithdrawal() external {
         require(requestedWithdrawalTime > 0 && requestedWithdrawalAmount > 0, "Safebox/no-pending-withdrawal");
         require(
-            (custodians[msg.sender] == 1) || (requestedWithdrawalTime + WITHDRAWAL_TIMELOCK < block.timestamp),
+            custodians[msg.sender] == 1 ||
+                requestedWithdrawalTime + WITHDRAWAL_TIMELOCK < block.timestamp ||
+                vat.live() == 0,
             "Safebox/active-timelock"
         );
 
@@ -187,10 +200,13 @@ contract Safebox {
 
     /**
      * @notice Denies a withdrawal request.
+     * @dev Reverts if the withdrawal timelock has expired.
+     * @dev Reverts if the Vat is not live.
      */
     function denyWithdrawal() external onlyCustodian {
         require(requestedWithdrawalTime > 0 && requestedWithdrawalAmount > 0, "Safebox/no-pending-withdrawal");
         require(requestedWithdrawalTime + WITHDRAWAL_TIMELOCK >= block.timestamp, "Safebox/timelock-expired");
+        require(vat.live() == 1, "Safebox/vat-not-live");
 
         uint256 amount = requestedWithdrawalAmount;
         requestedWithdrawalAmount = 0;
@@ -296,9 +312,11 @@ contract Safebox {
     /**
      * @notice Approves the change in the recipient.
      * @dev Reverts if `pendingRecipient` has not been set or if `_recipient` does not match it.
+     * @dev Reverts if the Vat is not live.
      * @param _recipient The new recipient being approved.
      */
     function approveChangeRecipient(address _recipient) external onlyCustodian {
+        require(vat.live() == 1, "Safebox/vat-not-live");
         require(pendingRecipient != address(0) && pendingRecipient == _recipient, "Safebox/recipient-mismatch");
 
         recipient = _recipient;

@@ -20,13 +20,14 @@ import {ERC20 as ERC20Abstract} from "solmate/tokens/ERC20.sol";
 import {Safebox} from "./Safebox.sol";
 
 contract SafeboxTest is Test {
-    Safebox internal safebox;
-    ERC20 internal usdx = new ERC20("USDX", "USDX", 18);
+    Safebox safebox;
+    ERC20 usdx = new ERC20("USDX", "USDX", 18);
 
-    FakeVatLiveness internal vat = new FakeVatLiveness();
-    address internal owner = address(this);
-    address internal custodian = address(0x1337);
-    address internal recipient = address(0x2448);
+    FakeVatLiveness vat = new FakeVatLiveness();
+    address owner = address(this);
+    address custodian = address(0x1337);
+    address recipient = address(0x2448);
+    address anyone = address(0x3559);
 
     function setUp() public {
         safebox = new Safebox(address(vat), address(usdx), owner, custodian, recipient);
@@ -115,33 +116,27 @@ contract SafeboxTest is Test {
         safebox.requestWithdrawal(amount + 1);
     }
 
-    function testFuzzRevertRequestWithdrawalWhenNotOwner(address sender) public {
-        vm.assume(sender != owner);
-
+    function testRevertRequestWithdrawalWhenNotOwner() public {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
         assertEq(usdx.balanceOf(address(safebox)), amount);
 
         vm.expectRevert("Safebox/not-ward");
 
-        vm.startPrank(sender);
+        vm.startPrank(anyone);
         safebox.requestWithdrawal(amount);
     }
 
-    function testFuzzAnyoneCanRequestWithdrawalWhenVatIsNotLive(address sender) public {
-        vm.assume(sender != owner && sender != address(safebox));
-        vat.cage();
-
+    function testAnyoneCanRequestWithdrawalWhenVatIsNotLive() public {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
 
-        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
-        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
+        vat.cage();
 
         vm.expectEmit(true, false, false, true);
-        emit RequestWithdrawal(sender, amount);
+        emit RequestWithdrawal(anyone, amount);
 
-        vm.startPrank(sender);
+        vm.startPrank(anyone);
         safebox.requestWithdrawal(amount);
     }
 
@@ -163,19 +158,30 @@ contract SafeboxTest is Test {
         assertEq(usdx.balanceOf(recipient), 0, "Post-condition failed: recipient balance not zero");
     }
 
+    function testRevertCancelWithdrawalAfterCage() public {
+        uint256 amount = 123;
+        usdx.mint(address(safebox), amount);
+
+        safebox.requestWithdrawal(amount);
+        vat.cage();
+
+        vm.expectRevert("Safebox/vat-not-live");
+        safebox.cancelWithdrawal();
+    }
+
     function testRevertRevertCancelWithdrawalWhenNotRequested() public {
         vm.expectRevert("Safebox/no-pending-withdrawal");
         safebox.cancelWithdrawal();
     }
 
-    function testCustodianCanExecuteWithdrawalImmediately() public {
+    function testCustodianCanExecuteFullWithdrawalImmediately() public {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
 
         assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
         assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
 
-        safebox.requestWithdrawal(amount);
+        safebox.requestWithdrawal();
 
         vm.expectEmit(true, true, false, true);
         emit ExecuteWithdrawal(custodian, recipient, amount);
@@ -187,7 +193,31 @@ contract SafeboxTest is Test {
         assertEq(usdx.balanceOf(recipient), amount, "Post-condition failed: invalid recipient balance");
     }
 
-    function testFuzzAnyoneCanExecuteWithdrawalAfterTimelock(address sender) public {
+    function testCustodianCanExecuteWithdrawalImmediately() public {
+        uint256 totalAmount = 123;
+        uint256 withdrawalAmount = 23;
+        usdx.mint(address(safebox), totalAmount);
+
+        assertEq(usdx.balanceOf(address(safebox)), totalAmount, "Pre-condition failed: bad safebox balance");
+        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
+
+        safebox.requestWithdrawal(withdrawalAmount);
+
+        vm.expectEmit(true, true, false, true);
+        emit ExecuteWithdrawal(custodian, recipient, withdrawalAmount);
+
+        vm.startPrank(custodian);
+        safebox.executeWithdrawal();
+
+        assertEq(
+            usdx.balanceOf(address(safebox)),
+            totalAmount - withdrawalAmount,
+            "Post-condition failed: invalid safebox balance"
+        );
+        assertEq(usdx.balanceOf(recipient), withdrawalAmount, "Post-condition failed: invalid recipient balance");
+    }
+
+    function testAnyoneCanExecuteWithdrawalAfterTimelock() public {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
 
@@ -198,18 +228,36 @@ contract SafeboxTest is Test {
         skip(safebox.WITHDRAWAL_TIMELOCK() + 1);
 
         vm.expectEmit(true, true, false, true);
-        emit ExecuteWithdrawal(sender, recipient, amount);
+        emit ExecuteWithdrawal(anyone, recipient, amount);
 
-        vm.startPrank(sender);
+        vm.startPrank(anyone);
         safebox.executeWithdrawal();
 
         assertEq(usdx.balanceOf(address(safebox)), 0, "Post-condition failed: invalid safebox balance");
         assertEq(usdx.balanceOf(recipient), amount, "Post-condition failed: invalid recipient balance");
     }
 
-    function testFuzzRevertExecuteWithdrawalBeforeTimelock(address sender) public {
-        vm.assume(sender != custodian);
+    function testAnyoneCanExecuteWithdrawalImmediatelyAfterCage() public {
+        uint256 amount = 123;
+        usdx.mint(address(safebox), amount);
 
+        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
+        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
+
+        safebox.requestWithdrawal(amount);
+        vat.cage();
+
+        vm.expectEmit(true, true, false, true);
+        emit ExecuteWithdrawal(anyone, recipient, amount);
+
+        vm.startPrank(anyone);
+        safebox.executeWithdrawal();
+
+        assertEq(usdx.balanceOf(address(safebox)), 0, "Post-condition failed: invalid safebox balance");
+        assertEq(usdx.balanceOf(recipient), amount, "Post-condition failed: invalid recipient balance");
+    }
+
+    function testRevertExecuteWithdrawalBeforeTimelock() public {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
 
@@ -220,7 +268,7 @@ contract SafeboxTest is Test {
         skip(safebox.WITHDRAWAL_TIMELOCK() - 1);
 
         vm.expectRevert("Safebox/active-timelock");
-        vm.startPrank(sender);
+        vm.startPrank(anyone);
         safebox.executeWithdrawal();
     }
 
@@ -260,9 +308,6 @@ contract SafeboxTest is Test {
         uint256 amount = 123;
         usdx.mint(address(safebox), amount);
 
-        assertEq(usdx.balanceOf(address(safebox)), amount, "Pre-condition failed: bad safebox balance");
-        assertEq(usdx.balanceOf(recipient), 0, "Pre-condition failed: recipient balance not zero");
-
         safebox.requestWithdrawal(amount);
 
         skip(safebox.WITHDRAWAL_TIMELOCK() + 1);
@@ -272,12 +317,21 @@ contract SafeboxTest is Test {
         safebox.denyWithdrawal();
     }
 
-    function testRevertDenyWithdrawalWhenNotCustodian(address sender) public {
-        vm.assume(sender != custodian);
+    function testRevertDenyWithdrawalAfterCage() public {
+        uint256 amount = 123;
+        usdx.mint(address(safebox), amount);
+        safebox.requestWithdrawal(amount);
+        vat.cage();
 
+        vm.expectRevert("Safebox/vat-not-live");
+        vm.prank(custodian);
+        safebox.denyWithdrawal();
+    }
+
+    function testRevertDenyWithdrawalWhenNotCustodian() public {
         vm.expectRevert("Safebox/not-custodian");
 
-        vm.prank(sender);
+        vm.prank(anyone);
         safebox.denyWithdrawal();
     }
 
@@ -326,6 +380,26 @@ contract SafeboxTest is Test {
 
         vm.prank(address(custodian));
         safebox.approveChangeRecipient(address(0x1234));
+    }
+
+    function testRevertChangeRecipientAfterCage() public {
+        address newRecipient = address(0xd34d);
+
+        vat.cage();
+
+        vm.expectRevert("Safebox/vat-not-live");
+        safebox.file("recipient", newRecipient);
+    }
+
+    function testRevertApproveChangeRecipientAfterCage() public {
+        address newRecipient = address(0xd34d);
+        safebox.file("recipient", newRecipient);
+
+        vat.cage();
+
+        vm.expectRevert("Safebox/vat-not-live");
+        vm.prank(address(custodian));
+        safebox.approveChangeRecipient(newRecipient);
     }
 
     event Rely(address indexed usr);

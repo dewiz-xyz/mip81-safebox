@@ -15,3 +15,7 @@ node_modules/
 
 # Ignore backup files
 *.bkp
+
+# Coverage
+lcov.info
+report/
