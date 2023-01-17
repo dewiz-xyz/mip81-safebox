@@ -12,3 +12,10 @@ broadcast/**/dry-run/
 
 # Node modules
 node_modules/
+
+# Ignore backup files
+*.bkp
+
+# Coverage
+lcov.info
+report/
